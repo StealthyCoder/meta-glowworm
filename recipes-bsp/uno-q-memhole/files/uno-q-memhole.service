@@ -1,0 +1,13 @@
+[Unit]
+Description=Take the unusable RAM pages at 0x7a000000-0x7c9fefff out of service
+DefaultDependencies=no
+Before=sysinit.target shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/uno-q-memhole
+
+[Install]
+WantedBy=sysinit.target

@@ -1,0 +1,36 @@
+header:
+  version: 14
+
+# Bench fragment for an UNO Q that is reached over Wi-Fi and SSH. Copy it to local.yml
+# (git-ignored) in the repository root, adjust the paths, and build with
+#   kas build ci/glowworm.yml:local.yml
+#
+# An image built without this fragment has no Wi-Fi profile and no SSH key: flash it over USB,
+# and expect an OTA of it to leave a board that is reached over the network unreachable.
+# An image built with it carries the Wi-Fi passphrase: keep it off update servers and factories.
+local_conf_header:
+  dev-access: |
+    # NetworkManager keyfile with the network, installed 0600 and root-owned:
+    #   [connection]
+    #   id=MyNetwork
+    #   type=wifi
+    #   [wifi]
+    #   mode=infrastructure
+    #   ssid=MyNetwork
+    #   [wifi-security]
+    #   key-mgmt=wpa-psk
+    #   psk=YOUR-PASSPHRASE
+    #   [ipv4]
+    #   method=auto
+    #   [ipv6]
+    #   method=auto
+    DEV_ACCESS_WIFI_KEYFILE = "/home/YOU/.config/glowworm/MyNetwork.nmconnection"
+    # The public key that may log in as root. Password login stays off.
+    DEV_ACCESS_SSH_PUBKEY = "/home/YOU/.ssh/id_ed25519.pub"
+    # 5 GHz channels need the regulatory domain of your country.
+    DEV_ACCESS_REGDOM = "NL"
+    # uno-q-memhole works around meta-qcom-arduino#16 on boards with the old edk2 boot firmware.
+    IMAGE_INSTALL:append = " dev-access uno-q-memhole"
+    # Optional: Tailscale (log in once with `tailscale up`; a USB reflash wipes the login) and the
+    # Ghostty terminfo entry.
+    #IMAGE_INSTALL:append = " tailscale-bin ghostty-terminfo"

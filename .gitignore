@@ -1,0 +1,23 @@
+# the local kas fragment with the paths to your Wi-Fi keyfile and SSH key
+/local.yml
+*.nmconnection
+
+# kas build output and the layers kas checks out
+/build/
+/downloads/
+/sstate-cache/
+/bitbake/
+/oe-core/
+/openembedded-core/
+/meta-ai/
+/meta-arm/
+/meta-audioreach/
+/meta-foundries/
+/meta-openembedded/
+/meta-qcom/
+/meta-qcom-arduino/
+/meta-qcom-distro/
+/meta-security/
+/meta-selinux/
+/meta-updater/
+/meta-virtualization/

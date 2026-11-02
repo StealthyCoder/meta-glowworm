@@ -1,0 +1,25 @@
+header:
+  version: 14
+  includes:
+    - repo: meta-foundries
+      file: ci/uno-q.yml
+
+repos:
+  meta-glowworm:
+    layers:
+      .:
+
+  meta-foundries:
+    url: https://github.com/foundriesio/meta-foundries
+    branch: main
+
+local_conf_header:
+  glowworm-gpu: |
+    # vulkan-loader and vulkan-tools require the vulkan distro feature.
+    DISTRO_FEATURES:append = " vulkan"
+    IMAGE_INSTALL:append = " packagegroup-glowworm-gpu"
+    # "1" builds Rusticl (OpenCL), which brings LLVM and clang into the build.
+    #GLOWWORM_MESA_OPENCL = "1"
+
+  glowworm-tools: |
+    IMAGE_INSTALL:append = " htop iproute2-ss"
