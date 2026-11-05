@@ -11,6 +11,8 @@ laptops. Name it with qcom,uefi-rtc-info on the Arduino board only:
 pm4125.dtsi is shared with the RB1, whose firmware is not known to
 provide it.
 
+Upstream-Status: Pending
+
 --- a/arch/arm64/boot/dts/qcom/pm4125.dtsi
 +++ b/arch/arm64/boot/dts/qcom/pm4125.dtsi
 @@ -66,7 +66,7 @@
