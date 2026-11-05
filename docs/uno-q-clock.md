@@ -95,11 +95,24 @@ not). Persisting the offset would take an allowlist entry plus a call to `efivar
 before the TrustZone driver registers. Not tried: it uses an untested TrustZone interface, and the gain
 is a clock that is right for the 90 seconds before NTP.
 
-Not tried either:
+## Letting the host write the RTC (tried, refused by the hardware)
 
-- `allow-set-time` on `rtc@6000`, which would write the PMIC's registers directly. Nothing in the Arduino
-  documents says whether the host may. Without a battery the RTC still resets when all power is lost.
-- `nvmem-cells`: `pm4125.dtsi` defines no SDAM node to hold the offset.
+Tried on 2026-11-05 with `allow-set-time;` on `rtc@6000` for the Arduino board (branch
+`try-rtc-allow-set-time`, update 29 on the board). The driver then writes the PMIC registers directly
+instead of keeping an offset. It does not work: the PMIC arbiter refuses every write.
+
+```
+spmi spmi-0: disallowed SPMI write to sid=0, addr=0x6046
+```
+
+`spmi-pmic-arb` returns `-EPERM` for a peripheral whose write owner (`write_ee`) is not Linux's execution
+environment. The firmware gave the RTC to another owner, so the host can read the counter and never set
+it. `hctosys` reads the raw counter (`1970-01-15`), `rtc0` stays there, `CONFIG_RTC_SYSTOHC` retries
+every few seconds and the kernel log fills with the refusal (1820 lines in five minutes). This fits the
+offset in UEFI that Qualcomm's own platforms use instead of setting the RTC. Do not set `allow-set-time`
+on this board.
+
+Not tried: `nvmem-cells`, since `pm4125.dtsi` defines no SDAM node to hold the offset.
 
 ## Hardware
 
