@@ -1,0 +1,37 @@
+arm64: dts: qcom: qrb2210-arduino-imola: keep the RTC offset in UEFI
+
+The RTC in the PM4125 PMIC is never set: the rtc-pm8xxx driver only
+writes it with allow-set-time and otherwise needs an offset store, which
+rtc@6000 does not have. The RTC counts from zero, so every boot reads
+1970-01-14 and CONFIG_RTC_HCTOSYS sets the clock to it.
+
+The firmware has the variable the driver uses for the offset,
+882f8c2b-9646-435f-8de5-f208ff80c1bd-RTCInfo, as on the Qualcomm
+laptops. Name it with qcom,uefi-rtc-info on the Arduino board only:
+pm4125.dtsi is shared with the RB1, whose firmware is not known to
+provide it.
+
+--- a/arch/arm64/boot/dts/qcom/pm4125.dtsi
++++ b/arch/arm64/boot/dts/qcom/pm4125.dtsi
+@@ -66,7 +66,7 @@
+ 			status = "disabled";
+ 		};
+ 
+-		rtc@6000 {
++		pm4125_rtc: rtc@6000 {
+ 			compatible = "qcom,pm8941-rtc";
+ 			reg = <0x6000>, <0x6100>;
+ 			reg-names = "rtc", "alarm";
+--- a/arch/arm64/boot/dts/qcom/qrb2210-arduino-imola-base.dts
++++ b/arch/arm64/boot/dts/qcom/qrb2210-arduino-imola-base.dts
+@@ -315,6 +315,10 @@
+ 	status = "okay";
+ };
+ 
++&pm4125_rtc {
++	qcom,uefi-rtc-info;
++};
++
+ &pm4125_vbus {
+ 	regulator-min-microamp = <500000>;
+ 	regulator-max-microamp = <500000>;
