@@ -29,7 +29,6 @@ as containers, so this layer carries only what the host OS has to provide.
 | `packagegroup-glowworm-gpu` | `ci/glowworm.yml` | Turnip (`mesa-vulkan-drivers`), `vulkan-loader` and `vulkan-tools` |
 | `mesa` bbappend | `MACHINE = uno-q` | removes `opencl libclc gallium-llvm` from `PACKAGECONFIG`, so Mesa builds without LLVM, clang and Rust; `GLOWWORM_MESA_OPENCL = "1"` restores them |
 | `os-release` bbappend | `MACHINE = uno-q` | adds `VARIANT="Glowworm"` and `VARIANT_ID="glowworm"` and sets `PRETTY_NAME`; `NAME` and `ID` stay the distro's |
-| `fioconfig` bbappend | `MACHINE = uno-q` | starts `fioconfig` in `/var/sota`, so remote one-shot actions can create their temporary directory |
 | `dev-access` | `IMAGE_INSTALL` | NetworkManager Wi-Fi profile, regulatory domain and a root SSH key (key login only), from files named in `local.yml` |
 | `uno-q-memhole` | `IMAGE_INSTALL` | boot-time oneshot that soft-offlines the RAM pages `0x7a000000-0x7c9fefff` |
 | `tailscale-bin` | `IMAGE_INSTALL` | Tailscale's prebuilt static aarch64 binaries, pinned by sha256, and the systemd unit |
