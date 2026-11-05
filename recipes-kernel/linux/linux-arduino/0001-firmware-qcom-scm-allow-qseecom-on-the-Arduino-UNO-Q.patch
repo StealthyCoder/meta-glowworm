@@ -1,0 +1,23 @@
+firmware: qcom: scm: allow qseecom on the Arduino UNO Q
+
+The UNO Q (arduino,imola, QRB2210) has the QSEECOM interface, version
+0x1402000, but qcom_scm skips it: "qseecom: untested machine, skipping".
+The firmware of the board keeps what is written to its EFI variables at
+runtime in RAM only (the RTStorageVolatile variable names
+VolatileVars.bin), so a variable such as RTCInfo is gone after the next
+reset. The uefisecapp client of the interface is the way to keep one.
+
+Add the board to the allowlist so the client can bind.
+
+Upstream-Status: Pending
+
+--- a/drivers/firmware/qcom/qcom_scm.c
++++ b/drivers/firmware/qcom/qcom_scm.c
+@@ -2288,6 +2288,7 @@
+  + any potential issues with this, only allow validated machines for now.
+  */
+ static const struct of_device_id qcom_scm_qseecom_allowlist[] __maybe_unused = {
++	{ .compatible = "arduino,imola" },
+ 	{ .compatible = "asus,vivobook-s15" },
+ 	{ .compatible = "asus,zenbook-a14-ux3407qa" },
+ 	{ .compatible = "asus,zenbook-a14-ux3407ra" },

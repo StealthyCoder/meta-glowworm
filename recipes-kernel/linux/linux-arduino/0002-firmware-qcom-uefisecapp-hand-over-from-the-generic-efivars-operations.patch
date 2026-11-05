@@ -1,0 +1,45 @@
+firmware: qcom: uefisecapp: hand over from the generic efivars operations
+
+The firmware of some machines still answers the EFI runtime variable
+services, so the generic operations are registered at boot, but keeps what
+is written there in RAM only. efivars_register() of this driver then returns
+-EBUSY and the variables stay volatile.
+
+Unregister the generic operations before registering the app's, as the
+StMM driver does, and register them again when the app's registration fails
+or the client is removed. On machines without the generic operations both
+calls do nothing.
+
+Upstream-Status: Pending
+
+--- a/drivers/firmware/qcom/qcom_qseecom_uefisecapp.c
++++ b/drivers/firmware/qcom/qcom_qseecom_uefisecapp.c
+@@ -829,9 +829,19 @@
+ 	if (status)
+ 		return status;
+ 
++	/*
++	 * Some firmware still answers the EFI runtime variable services but keeps
++	 * what is written there in RAM only, and the generic operations are then
++	 * registered already, so efivars_register() would return -EBUSY. Hand over
++	 * to the app, which has the persistent store, and go back if that fails.
++	 */
++	efivars_generic_ops_unregister();
++
+ 	status = efivars_register(&qcuefi->efivars, &qcom_efivar_ops);
+-	if (status)
++	if (status) {
++		efivars_generic_ops_register();
+ 		qcuefi_set_reference(NULL);
++	}
+ 
+ 	return status;
+ }
+@@ -841,6 +851,7 @@
+ 	struct qcuefi_client *qcuefi = auxiliary_get_drvdata(aux_dev);
+ 
+ 	efivars_unregister(&qcuefi->efivars);
++	efivars_generic_ops_register();
+ 	qcuefi_set_reference(NULL);
+ }
+ 
