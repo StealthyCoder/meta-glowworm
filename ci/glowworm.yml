@@ -23,3 +23,7 @@ local_conf_header:
 
   glowworm-tools: |
     IMAGE_INSTALL:append = " htop iproute2-ss"
+
+  glowworm-clock: |
+    # Keeps the unset PMIC RTC from resetting the clock to 1970 (docs/uno-q-clock.md).
+    IMAGE_INSTALL:append = " uno-q-clock"
