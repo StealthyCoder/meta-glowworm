@@ -39,6 +39,9 @@ lsmod | grep rtc_pm8xxx                         # no output
 journalctl -b | grep -c 'setting system clock'  # 0
 ```
 
+Seen on the board (updates 26 and 28): `timesyncd` restores the clock at 10 s, nothing sets it back, the
+first NTP sync is at about 100 s, the journal has no 1970 lines, and the apps show `Up N minutes`.
+
 This does not make the clock exact. After a boot it is as old as the last NTP sync or clean shutdown
 (minutes, normally), and it is stepped once NTP is reached.
 
@@ -59,29 +62,54 @@ server, so a clock that is minutes off is no use to them, and they retry on thei
   NetworkManager on the measured boot. NetworkManager itself starts 87 s into the boot, a delay that
   is not looked at here.
 
-## The proper fix
+## Giving the RTC an offset store (tried, not enough)
 
-The firmware already provides what the driver needs. The board's UEFI has the variable
-`RTCInfo-882f8c2b-9646-435f-8de5-f208ff80c1bd` (16 bytes: 4 bytes of attributes, `NV|BS|RT`, and 12 bytes
-of zeros), the exact variable that `qcom,uefi-rtc-info` names, and the kernel has `CONFIG_EFIVAR_FS`
-and the EFI runtime services. Adding `qcom,uefi-rtc-info;` to `rtc@6000` lets the driver store an
-offset in that variable, so the RTC keeps the time across reboots while the board is powered.
+The driver can keep an offset in the UEFI variable `RTCInfo-882f8c2b-9646-435f-8de5-f208ff80c1bd`
+(`qcom,uefi-rtc-info` on `rtc@6000`), and the board's UEFI already has that variable (16 bytes: `NV|BS|RT`
+attributes and 12 bytes of zeros). Tried on 2026-11-05 with a `linux-arduino` patch that sets the
+property on the Arduino board only (branch `try-rtc-uefi-offset`, update 27 on the board):
 
-Not verified:
+- Within one boot it works. About 7 minutes after the first NTP sync the driver had written the offset
+  into `RTCInfo` (`07 00 00 00 1a d5 04 58 ...`) and `rtc0` read the right time.
+- It does not survive a reset. On the next boot the driver read the offset as zero and `hctosys` set the
+  clock to `1980-01-20T03:36:09` at 13.6 s, as on the first boot, so the stale date only moved from 1970
+  to 1980.
 
-- That `SetVariable` works at runtime on this firmware (the variable is writable by its attributes, a
-  write was not tried).
-- Whether the PMIC allows the host to write its RTC registers (`allow-set-time`). Nothing in the
-  Arduino documents says.
-- `nvmem-cells` has no candidate: `pm4125.dtsi` defines no SDAM node.
+The cause is the firmware. It has an `RTStorageVolatile-b2ac5fc9-92b7-4acd-aeac-11e818c3130c`
+variable that contains `VolatileVars.bin`: variables written from Linux through the normal EFI runtime
+services stay in RAM, whatever their `NV` attribute says, and the write still returns success. The
+Qualcomm laptops persist them through a TrustZone app (`qcom.tz.uefisecapp`, the kernel's
+`qcom_qseecom_uefisecapp` driver). This kernel has that driver (`CONFIG_QCOM_QSEECOM_UEFISECAPP=y`) and
+the board's TrustZone has the service, but it is not used:
 
-Hardware: the RTC runs from the PMIC supply and stops when all power is lost. The `VCOIN` pin (JMISC
-pin 59) feeds only the PMIC's RTC ("does not power the Linux or MCU domains", UNO Q datasheet,
-power supply section); a coin cell there would keep it running without the 5 V supply. No cell is fitted.
+```
+qcom_scm firmware:scm: qseecom: found qseecom with version 0x1402000
+qcom_scm firmware:scm: qseecom: untested machine, skipping
+```
+
+`arduino,imola` is not in `qcom_scm_qseecom_allowlist` (`drivers/firmware/qcom/qcom_scm.c`; "we do not yet
+support re-entrant calls via the qseecom interface"). Adding it would not be enough: the driver's
+`efivars_register()` returns `-EBUSY` while the generic EFI variable operations are registered, and they
+are here, because this firmware reports the variable services as supported (the laptops' firmware does
+not). Persisting the offset would take an allowlist entry plus a call to `efivars_generic_ops_unregister()`
+before the TrustZone driver registers. Not tried: it uses an untested TrustZone interface, and the gain
+is a clock that is right for the 90 seconds before NTP.
+
+Not tried either:
+
+- `allow-set-time` on `rtc@6000`, which would write the PMIC's registers directly. Nothing in the Arduino
+  documents says whether the host may. Without a battery the RTC still resets when all power is lost.
+- `nvmem-cells`: `pm4125.dtsi` defines no SDAM node to hold the offset.
+
+## Hardware
+
+The RTC runs from the PMIC supply and stops when all power is lost. The `VCOIN` pin (JMISC pin 59) feeds
+only the PMIC's RTC ("does not power the Linux or MCU domains", UNO Q datasheet, power supply section); a
+coin cell there would keep it running without the 5 V supply. No cell is fitted.
 
 ## Upstream
 
-The fix belongs in the board's device tree, in `meta-qcom-arduino`'s kernel (`linux-arduino`) or in
-`pm4125.dtsi`. It does not belong in `meta-foundries`, a generic layer for many machines, where
-blacklisting a PMIC RTC driver would also switch off the RTC of boards that have a working one. The
-blacklist here is a workaround for an image that cannot change the kernel.
+A fix belongs in the board's kernel (`linux-arduino` in `meta-qcom-arduino`, or `arduino/linux-qcom`), not
+in `meta-foundries`, a generic layer for many machines, where blacklisting a PMIC RTC driver would also
+switch off the RTC of boards that have a working one. The blacklist here is a workaround for an image
+that does not change the kernel.
