@@ -25,5 +25,5 @@ local_conf_header:
     IMAGE_INSTALL:append = " htop iproute2-ss"
 
   glowworm-clock: |
-    # Keeps the unset PMIC RTC from setting the clock to 1970, and starts the network services after NTP (docs/uno-q-clock.md).
+    # Starts the network services after NTP (docs/uno-q-clock.md).
     IMAGE_INSTALL:append = " uno-q-clock"
