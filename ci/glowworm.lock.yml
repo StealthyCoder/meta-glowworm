@@ -3,4 +3,4 @@ header:
 overrides:
   repos:
     meta-foundries:
-      commit: aff1bc104f2224ab5256e0665a78962e1ac8e226
+      commit: 79cb34b95225b2f44041b5f874dacbfcd2626448
