@@ -42,6 +42,23 @@ journalctl -b | grep -c 'setting system clock'  # 0
 This does not make the clock exact. After a boot it is as old as the last NTP sync or clean shutdown
 (minutes, normally), and it is stepped once NTP is reached.
 
+## Starting the network services after NTP
+
+`aktualizr-lite`, `fioconfig` and `tailscaled` have a drop-in (`10-uno-q-time-sync.conf`) with
+`Wants=systemd-time-wait-sync.service time-sync.target` and `After=time-sync.target`. They talk to a
+server, so a clock that is minutes off is no use to them, and they retry on their own anyway.
+
+- `systemd-time-wait-sync.service` is disabled on the image and ships with `TimeoutStartSec=infinity`.
+  The `Wants=` puts it in their start transaction, which is what holds `time-sync.target` back, and a
+  drop-in (`10-uno-q.conf`) limits the wait to two minutes. Without NTP (no Wi-Fi, a network that
+  blocks UDP 123) the three services start two minutes after the unit begins, and
+  `systemd-time-wait-sync.service` shows as failed.
+- `docker`, `containerd` and the apps are not held back: they must come up without a network. With the
+  blacklist their clock is already close to right.
+- Expect the services to start roughly as late as the first NTP sync, about 12 seconds after
+  NetworkManager on the measured boot. NetworkManager itself starts 87 s into the boot, a delay that
+  is not looked at here.
+
 ## The proper fix
 
 The firmware already provides what the driver needs. The board's UEFI has the variable
