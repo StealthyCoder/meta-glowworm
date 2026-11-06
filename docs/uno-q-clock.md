@@ -14,7 +14,7 @@ The clock is correct early in the boot and then goes backwards. Measured on the 
 | --- | --- |
 | 9.9 s | `systemd-timesyncd` advances the clock to its recorded timestamp, the mtime of `/var/lib/systemd/timesync/clock`. This is correct to within the time since the last sync. |
 | 13.9 s | The `rtc-pm8xxx` module loads and `CONFIG_RTC_HCTOSYS` sets the clock to `1970-01-14T23:33:16`. |
-| 86.7 s | NetworkManager starts. |
+| 86.7 s | NetworkManager starts (late because `uno-q-memhole.service` held back `sysinit.target`, see [Boot time](#boot-time)). |
 | 86.9 to 96.3 s | `aktualizr-lite`, `tailscaled`, `containerd` and `docker` start, all in 1970. |
 | 99.2 s | The first NTP sync (`Initial clock synchronization`) sets the real time. |
 
@@ -58,9 +58,45 @@ server, so a clock that is minutes off is no use to them, and they retry on thei
   `systemd-time-wait-sync.service` shows as failed.
 - `docker`, `containerd` and the apps are not held back: they must come up without a network. With the
   blacklist their clock is already close to right.
-- Expect the services to start roughly as late as the first NTP sync, about 12 seconds after
-  NetworkManager on the measured boot. NetworkManager itself starts 87 s into the boot, a delay that
-  is not looked at here.
+- Expect the services to start as late as the first NTP sync, which depends on how fast the Wi-Fi
+  comes up: at about 58 s on the measured boot (update 33), see [Boot time](#boot-time).
+
+## Boot time
+
+NetworkManager used to start 87 s into the boot, which is why the network services only started at
+about 100 s. It was not the network: `uno-q-memhole.service` (`uno-q-memhole` recipe) takes the unusable
+RAM pages out of service, is ordered `Before=sysinit.target`, and its script forked `dd`, `od` and `tr`
+for each of the 10,751 pages of the window to read the page flags. That is 7 ms a page, 77 s in all, and
+D-Bus, NetworkManager, containerd and Docker are all ordered after `sysinit.target`. The script now reads
+the flags of the whole window in one pass and takes 3.4 s with the same result (10,751 pages offlined).
+
+Measured with `journalctl -b -o short-monotonic`, before the change (2026-11-05) and on update 33
+(2026-11-06):
+
+| Uptime | Before | Update 33 |
+| --- | --- | --- |
+| `uno-q-memhole.service` finished | 85.8 s (started at 8.5 s) | 11.9 s (started at 8.5 s) |
+| NetworkManager starts | 86.8 s | 14.6 s |
+| containerd / Docker started | 88 s / 94 s | 15.9 s / 22.2 s |
+| First NTP sync | 99.2 s | 58.4 s |
+| `aktualizr-lite`, `fioconfig`, `tailscaled` | about 100 s | 58.6 to 58.8 s |
+
+What is left on update 33, in order:
+
+- `wlan0` appears at 20.2 s, once the `ath10k` firmware is loaded (20.0 s), and NetworkManager is ready
+  for it at 21.9 s. It auto-activates the connection only at 26.8 s and logs nothing in between (probably
+  its initial scan; not checked). The association then takes 0.4 s, and the connection is active at 27.9 s.
+- The Wi-Fi is up at 27.9 s and `systemd-timesyncd` logs `Network configuration changed, trying to
+  establish connection` in the same instant. Its first answer comes at 58.4 s, 30.5 s later, which is its
+  default `ConnectionRetrySec=30s`. The first attempt logs nothing, and why it fails is not known (the
+  DHCPv6 lease arrives at 33.1 s, after it, and the server that answered was reached over IPv6;
+  whether that matters has not been checked). `SYSTEMD_LOG_LEVEL=debug` on `systemd-timesyncd` would show it.
+
+A board that still has the hand-installed `/etc/systemd/system/uno-q-memhole.service` and
+`/etc/uno-q-memhole.sh` runs the old script: a unit in `/etc` shadows the one in `/usr/lib`. Point the link
+`/etc/systemd/system/sysinit.target.wants/uno-q-memhole.service` at
+`/usr/lib/systemd/system/uno-q-memhole.service`, remove the two files, run `systemctl daemon-reload`,
+and check `systemctl cat uno-q-memhole.service` before the next boot.
 
 ## Giving the RTC an offset store (tried, not enough)
 
