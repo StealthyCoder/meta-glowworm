@@ -59,7 +59,7 @@ server, so a clock that is minutes off is no use to them, and they retry on thei
 - `docker`, `containerd` and the apps are not held back: they must come up without a network. With the
   blacklist their clock is already close to right.
 - Expect the services to start as late as the first NTP sync, which depends on how fast the Wi-Fi
-  comes up: at about 58 s on the measured boot (update 33), see [Boot time](#boot-time).
+  comes up and on the `timesyncd` retry: at about 37 s on the measured boot, see [Boot time](#boot-time).
 
 ## Boot time
 
@@ -73,24 +73,35 @@ the flags of the whole window in one pass and takes 3.4 s with the same result (
 Measured with `journalctl -b -o short-monotonic`, before the change (2026-11-05) and on update 33
 (2026-11-06):
 
-| Uptime | Before | Update 33 |
-| --- | --- | --- |
-| `uno-q-memhole.service` finished | 85.8 s (started at 8.5 s) | 11.9 s (started at 8.5 s) |
-| NetworkManager starts | 86.8 s | 14.6 s |
-| containerd / Docker started | 88 s / 94 s | 15.9 s / 22.2 s |
-| First NTP sync | 99.2 s | 58.4 s |
-| `aktualizr-lite`, `fioconfig`, `tailscaled` | about 100 s | 58.6 to 58.8 s |
+| Uptime | Before | Update 33 | Update 33, 5 s retry |
+| --- | --- | --- | --- |
+| `uno-q-memhole.service` finished | 85.8 s (started at 8.5 s) | 11.9 s (started at 8.5 s) | 12.3 s |
+| NetworkManager starts | 86.8 s | 14.6 s | 14.7 s |
+| Docker started | 94 s | 22.2 s | 21.5 s |
+| Wi-Fi connection active | not measured | 27.9 s | 28.0 s |
+| First NTP sync | 99.2 s | 58.4 s | 36.9 s |
+| `aktualizr-lite`, `fioconfig`, `tailscaled` | about 100 s | 58.6 to 58.8 s | 37.2 to 37.3 s |
+
+The last column is update 33 with `ConnectionRetrySec=5s` (see below) put in
+`/etc/systemd/timesyncd.conf.d/` on the board, measured on 2026-11-06.
 
 What is left on update 33, in order:
 
 - `wlan0` appears at 20.2 s, once the `ath10k` firmware is loaded (20.0 s), and NetworkManager is ready
   for it at 21.9 s. It auto-activates the connection only at 26.8 s and logs nothing in between (probably
   its initial scan; not checked). The association then takes 0.4 s, and the connection is active at 27.9 s.
-- The Wi-Fi is up at 27.9 s and `systemd-timesyncd` logs `Network configuration changed, trying to
-  establish connection` in the same instant. Its first answer comes at 58.4 s, 30.5 s later, which is its
-  default `ConnectionRetrySec=30s`. The first attempt logs nothing, and why it fails is not known (the
-  DHCPv6 lease arrives at 33.1 s, after it, and the server that answered was reached over IPv6;
-  whether that matters has not been checked). `SYSTEMD_LOG_LEVEL=debug` on `systemd-timesyncd` would show it.
+- The Wi-Fi is up at 27.9 s, and the first NTP answer only comes at 58.4 s, 30.5 s later. That is
+  `systemd-timesyncd` backing off, found with `SYSTEMD_LOG_LEVEL=debug` on a second boot:
+  - It makes its first attempt at 21.7 s, when it already sees a network. That is not the Wi-Fi, which
+    is active at 28.0 s (probably the Docker bridges; not checked). `systemd-resolved` has no DNS server yet, so all lookups fail at once (`io.systemd.Resolve.MaxAttemptsReached`,
+    13 ms each, four servers) and `timesyncd` starts its retry timer.
+  - It then ignores the network changes that follow, among them the Wi-Fi coming up (`Delaying attempts to
+    contact servers.` at 28.0, 30.8 and 31.4 s) and tries again when the timer fires.
+  - The retry interval is `ConnectionRetrySec=`, 30 s by default. This layer sets it to 5 s
+    (`/usr/lib/systemd/timesyncd.conf.d/10-uno-q.conf`), and the first sync moved from 58.4 s to 36.9 s
+    (last column above). It is still not right at the Wi-Fi's 28.0 s: the timer fired at 27.1 s without
+    an attempt (`Delaying attempts to contact servers.`) and the next one came at 36.7 s.
+  - The 58.4 s boot was not logged at debug level; it shows the same gap of one retry interval.
 
 A board that still has the hand-installed `/etc/systemd/system/uno-q-memhole.service` and
 `/etc/uno-q-memhole.sh` runs the old script: a unit in `/etc` shadows the one in `/usr/lib`. Point the link
