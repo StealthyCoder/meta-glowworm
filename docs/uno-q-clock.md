@@ -85,6 +85,10 @@ Measured with `journalctl -b -o short-monotonic`, before the change (2026-11-05)
 The last column is update 33 with `ConnectionRetrySec=5s` (see below) put in
 `/etc/systemd/timesyncd.conf.d/` on the board, measured on 2026-11-06.
 
+Update 34 ships the setting in the image. With nothing in `/etc`, the board syncs at 31.5 s (the Wi-Fi
+connection is active at 27.2 s) and `aktualizr-lite`, `fioconfig` and `tailscaled` start at 31.8 to 32.0 s.
+There are no wrong dates, no failed units, and all apps show `Up N minutes`.
+
 What is left on update 33, in order:
 
 - `wlan0` appears at 20.2 s, once the `ath10k` firmware is loaded (20.0 s), and NetworkManager is ready
