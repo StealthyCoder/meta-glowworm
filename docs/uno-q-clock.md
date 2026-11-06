@@ -88,12 +88,30 @@ qcom_scm firmware:scm: qseecom: untested machine, skipping
 ```
 
 `arduino,imola` is not in `qcom_scm_qseecom_allowlist` (`drivers/firmware/qcom/qcom_scm.c`; "we do not yet
-support re-entrant calls via the qseecom interface"). Adding it would not be enough: the driver's
-`efivars_register()` returns `-EBUSY` while the generic EFI variable operations are registered, and they
-are here, because this firmware reports the variable services as supported (the laptops' firmware does
-not). Persisting the offset would take an allowlist entry plus a call to `efivars_generic_ops_unregister()`
-before the TrustZone driver registers. Not tried: it uses an untested TrustZone interface, and the gain
-is a clock that is right for the 90 seconds before NTP.
+support re-entrant calls via the qseecom interface"). The driver's `efivars_register()` also returns
+`-EBUSY` while the generic EFI variable operations are registered, and they are here, because this
+firmware reports the variable services as supported (the laptops' firmware does not).
+
+### The TrustZone app, tried: it does not persist either
+
+Tried on 2026-11-06 (branch `try-rtc-trustzone`, update 31 on the board) with two kernel patches: the
+allowlist entry, and `efivars_generic_ops_unregister()` before the app's `efivars_register()`, as
+`tee_stmm_efi.c` does for OP-TEE. The handoff works and nothing hangs:
+
+```
+qcom_qseecom qcom_qseecom: setting up client for qcom.tz.uefisecapp
+efivars: Unregistered efivars operations
+efivars: Registered efivars operations
+```
+
+`efivarfs` lists the variables, the RTC driver probes, and after NTP the offset is written to `RTCInfo` and
+read back. But a reboot loses it, as before: the second boot set the clock to `1980-01-20` at 13.5 s.
+`bootctl` shows the same from systemd's side. It writes `LoaderSystemToken` once, and on the second boot it
+logged `Successfully initialized system token in EFI variable` again, because the variable was gone.
+So the app keeps runtime writes in the secure world's RAM. Nothing reaches the `uefivarstore` partition
+(encrypted; Linux reads it and has not written to it). Persisting there presumably needs the
+re-entrant calls into the normal world (a listener) that the allowlist comment says are not supported.
+With this the EFI variable routes are exhausted on this board.
 
 ## Letting the host write the RTC (tried, refused by the hardware)
 
@@ -122,7 +140,12 @@ coin cell there would keep it running without the 5 V supply. No cell is fitted.
 
 ## Upstream
 
-A fix belongs in the board's kernel (`linux-arduino` in `meta-qcom-arduino`, or `arduino/linux-qcom`), not
-in `meta-foundries`, a generic layer for many machines, where blacklisting a PMIC RTC driver would also
-switch off the RTC of boards that have a working one. The blacklist here is a workaround for an image
-that does not change the kernel.
+No kernel patch can fix this on the current firmware: Linux cannot set the RTC (the arbiter refuses the
+write) and no EFI variable survives a reset. It needs a change in the firmware, either write ownership of
+the RTC for Linux (then `allow-set-time` on the Arduino board, and a coin cell on `VCOIN` for power cuts)
+or a persistent store for runtime variables. That is a question for Arduino and Qualcomm; the board's
+kernel is `arduino/linux-qcom` (`linux-arduino` in `meta-qcom-arduino`).
+
+The blacklist does not belong in `meta-foundries` or `meta-qcom`, generic layers for many machines, where
+blacklisting a PMIC RTC driver would also switch off the RTC of boards that have a working one. It is
+a workaround for this board, kept here.
