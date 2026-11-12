@@ -47,6 +47,14 @@ Arduino's ABL firmware `251020`.
 `tailscale-bin` installs the binaries and the unit. The board still logs in once with
 `tailscale up`, and a USB reflash wipes that login.
 
+## contrib
+
+`contrib/` holds tools that are not recipes and do not end up in the image. For now that is
+[`contrib/openocd-glowworm`](contrib/openocd-glowworm/README.md): it builds the OpenOCD that Glowworm's MCU container
+ships to reach the UNO Q's STM32U585 over SWD, from upstream master with libgpiod 2.x (OpenOCD 0.12.0 only speaks the GPIO v1
+interface that the kernel fragment above keeps alive). The `.deb` it makes is attached to the
+[`openocd-glowworm-*` releases](../../releases) of this repository, because Glowworm fetches it over plain HTTPS.
+
 ## Building
 
 ```sh
