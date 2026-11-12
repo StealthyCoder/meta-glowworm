@@ -14,8 +14,8 @@ GPIO lines (25 and 26 of `gpiochip1`). That goes through OpenOCD's `linuxgpiod` 
 
 - Debian bookworm's OpenOCD 0.12.0 uses libgpiod **1.6.3**, which talks the v1 GPIO character-device ABI.
 - `linux-arduino` 7.2 no longer enables `CONFIG_GPIO_CDEV_V1` (the Kconfig option lost its `default y`), so on 7.2.11 that OpenOCD
-  fails with `Error get line swdio` and the supervisor restarts forever. The kernel fragment in `recipes-kernel/linux/` is the
-  stop-gap.
+  fails with `Error get line swdio` and the supervisor restarts forever. A kernel fragment that turned the option back on kept the
+  board working in the meantime; it is gone now that this OpenOCD replaced the need for it (see "Proving it").
 - Debian trixie does not help: its OpenOCD 0.12.0 is built without the `linuxgpiod` driver.
 - Upstream OpenOCD **master** has had libgpiod v2 support since 2025-09-27 (`c92cc6b5` and siblings), but there is no release with
   it (the last is v0.12.0, 2023). So this builds a pinned master commit.
@@ -39,7 +39,7 @@ so the binary links the image's glibc (2.36). libgpiod 2.1.3 comes from bookworm
 | Built | 2026-11-12 on a `t2a-standard-4` in `europe-west4-a` from the `debian-12-arm64` family: about 5 minutes from `gcp-build.sh` to a deleted VM |
 | Released | tag `openocd-glowworm-4900bcdf-1`, OpenOCD `4900bcdf`, sha256 `a12aab304840b283e36f9ed52269a039e36d37008511a4199e849bf5b53ca910` |
 | Running | in Glowworm's update 38 on a UNO Q: the supervisor's SWD dump works (`the MCU already holds this sketch`, container healthy, 0 restarts) |
-| Not yet shown | that it works **without** `CONFIG_GPIO_CDEV_V1`: that UNO Q's kernel still has it on. See "Proving it" |
+| Proven without v1 | 2026-11-12, OS build 28 (update 39), a kernel with `# CONFIG_GPIO_CDEV_V1 is not set`: after the reboot the supervisor's SWD dump still works, `glowworm-mcu` is healthy with 0 restarts, and the LED matrix goes black. See "Proving it" |
 
 ## Running it (it needs an arm64 machine)
 
@@ -84,14 +84,17 @@ the board.
 
 ## Proving it
 
-The point is that OpenOCD works **without** the v1 ABI. That can only be shown on a kernel without `CONFIG_GPIO_CDEV_V1`:
+The point is that OpenOCD works **without** the v1 ABI, which can only be shown on a kernel without `CONFIG_GPIO_CDEV_V1`. That is
+how it was shown, and how to show it again after a change to the kernel or to OpenOCD:
 
-1. Delete `recipes-kernel/linux/linux-arduino_%.bbappend` and `recipes-kernel/linux/files/gpio-cdev-v1.cfg`, build the OS, OTA it.
+1. Build the OS without any fragment that sets `CONFIG_GPIO_CDEV_V1` and OTA it.
 2. On the board, `zcat /proc/config.gz | grep CDEV_V1` must say `# CONFIG_GPIO_CDEV_V1 is not set`.
-3. After the reboot the `glowworm-mcu` container must stay up with 0 restarts, its log must say `the sketch answers; the matrix is
-   ready` with no `Error get line swdio`, and the LED matrix must go black.
+3. After the reboot the `glowworm-mcu` container must stay up with 0 restarts, its log must say `the MCU already holds this sketch`
+   (that line only follows a successful SWD dump through OpenOCD) and `the sketch answers; the matrix is ready`, with no
+   `Error get line swdio`, and the LED matrix must go black.
 
-If it does not, put the fragment back: the OS is fine with it.
+If a future OpenOCD or kernel breaks it, `git log` has the fragment that kept the board working: `recipes-kernel/linux/` before
+`fix(kernel): stop turning CONFIG_GPIO_CDEV_V1 on`.
 
 ## Bumping OpenOCD
 
