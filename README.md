@@ -65,6 +65,14 @@ history.
 `ci/glowworm.lock.yml` pins `meta-foundries`, and `meta-foundries` pins the other layers in its own
 lockfiles. Move the pin with `kas lock --update ci/glowworm.yml`.
 
+For now `ci/glowworm.yml` also pins `meta-qcom`, `meta-qcom-distro` and `meta-qcom-arduino` itself, in an
+`overrides:` block, to get the UNO Q RTC fix ([docs/uno-q-clock.md](docs/uno-q-clock.md)) before
+`meta-foundries` does. It has to be there and not in `ci/glowworm.lock.yml`: kas lets the lockfile of an
+included file win over this repo's lockfile, so a pin in `glowworm.lock.yml` is ignored without a
+warning. Delete the block when `meta-foundries` pins `meta-qcom-arduino` at `4697cfa` or later. The image
+also keeps the Arduino kernel (`linux-arduino`) through `ci/linux-arduino.yml`, because `meta-qcom-arduino`
+now defaults the UNO Q to `linux-qcom-next`.
+
 ### Reaching the board: `local.yml`
 
 The image from `ci/glowworm.yml` has no Wi-Fi profile and no SSH key. Flash it over USB; an OTA of

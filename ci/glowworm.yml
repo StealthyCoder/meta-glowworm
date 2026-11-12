@@ -3,6 +3,26 @@ header:
   includes:
     - repo: meta-foundries
       file: ci/uno-q.yml
+    # Since meta-qcom-arduino b72454b the UNO Q follows meta-qcom's default kernel (linux-qcom-next); this fragment keeps the
+    # Arduino kernel tree, which is what the board has run so far (linux-arduino, now 7.2.11 where it was 7.0).
+    - repo: meta-qcom-arduino
+      file: ci/linux-arduino.yml
+
+# These three layers are pinned by meta-foundries' ci/uno-q.lock.yml, which is still on meta-qcom-arduino 3ce96ec, before the UNO Q
+# RTC fix (4697cfa: CONFIG_RTC_HCTOSYS off, so the kernel stops setting the clock to 1970). They are pinned here ahead of it. They go
+# in this block and not in ci/glowworm.lock.yml because kas lets the lockfile of an included file win over this repo's lockfile (a pin
+# in glowworm.lock.yml is silently ignored); an overrides block in this file wins over both.
+# The three commits are the set meta-foundries PR #133 proposes (it built `uno-q` in CI), with meta-qcom-arduino moved on to 4697cfa:
+# the two commits after #133's pin are the RTC fix and its merge, and touch only the kernel config fragments.
+# Delete this block once meta-foundries' ci/uno-q.lock.yml pins meta-qcom-arduino at 4697cfa or later.
+overrides:
+  repos:
+    meta-qcom:
+      commit: 1485a7e4e80a9fbae9363e2158039d33a771f416
+    meta-qcom-distro:
+      commit: 5794e5cef28855a2fc9993607cd24f9b671a9b05
+    meta-qcom-arduino:
+      commit: 4697cfa69c08ea78f044058ea984a3ba6132f16e
 
 repos:
   meta-glowworm:

@@ -191,6 +191,18 @@ coin cell there would keep it running without the 5 V supply. No cell is fitted.
 
 ## Upstream
 
+### hctosys switched off in the kernel (meta-qcom-arduino 4697cfa)
+
+On 2026-11-11 `meta-qcom-arduino` merged [PR #17](https://github.com/qualcomm-linux/meta-qcom-arduino/pull/17):
+the UNO Q and VENTUNO Q kernels are built with `# CONFIG_RTC_HCTOSYS is not set` ("no battery"). The
+kernel then no longer replaces the clock that `systemd-timesyncd` restored with the RTC's 1970 date, the
+same effect as the blacklist above, with the RTC driver left loaded. This layer pins that commit ahead of
+`meta-foundries` (see the README). It has not been on the board yet: the blacklist stays until a boot with
+the fixed kernel shows `journalctl -b | grep -c 'setting system clock'` at 0 and no 1970 lines with the
+blacklist removed, and only then can it go.
+
+### What still needs the firmware
+
 No kernel patch can fix this on the current firmware: Linux cannot set the RTC (the arbiter refuses the
 write) and no EFI variable survives a reset. It needs a change in the firmware, either write ownership of
 the RTC for Linux (then `allow-set-time` on the Arduino board, and a coin cell on `VCOIN` for power cuts)
