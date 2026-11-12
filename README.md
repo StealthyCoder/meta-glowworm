@@ -30,7 +30,6 @@ as containers, so this layer carries only what the host OS has to provide.
 | `mesa` bbappend | `MACHINE = uno-q` | removes `opencl libclc gallium-llvm` from `PACKAGECONFIG`, so Mesa builds without LLVM, clang and Rust; `GLOWWORM_MESA_OPENCL = "1"` restores them |
 | `os-release` bbappend | `MACHINE = uno-q` | adds `VARIANT="Glowworm"` and `VARIANT_ID="glowworm"` and sets `PRETTY_NAME`; `NAME` and `ID` stay the distro's |
 | `uno-q-clock` | `ci/glowworm.yml` | starts `aktualizr-lite`, `fioconfig` and `tailscaled` after NTP and retries `timesyncd` after 5 s; the kernel no longer sets the clock from the never-set RTC (`CONFIG_RTC_HCTOSYS` is off in the pinned `meta-qcom-arduino`), which replaces this recipe's old `rtc_pm8xxx` blacklist ([docs/uno-q-clock.md](docs/uno-q-clock.md)) |
-| `linux-arduino` bbappend | `MACHINE = uno-q` | adds a config fragment with `CONFIG_GPIO_CDEV_V1=y`, which `linux-arduino` 7.2 no longer enables and which the OpenOCD of older `glowworm-mcu` images needs; to be deleted once the MCU image's OpenOCD is shown to work without it |
 | `dev-access` | `IMAGE_INSTALL` | NetworkManager Wi-Fi profile, regulatory domain and a root SSH key (key login only), from files named in `local.yml` |
 | `uno-q-memhole` | `IMAGE_INSTALL` | boot-time oneshot that soft-offlines the RAM pages `0x7a000000-0x7c9fefff` |
 | `tailscale-bin` | `IMAGE_INSTALL` | Tailscale's prebuilt static aarch64 binaries, pinned by sha256, and the systemd unit |
