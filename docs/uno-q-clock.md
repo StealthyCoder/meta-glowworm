@@ -27,20 +27,32 @@ presumably since the PMIC last lost power) and `hctosys` takes that for the date
 
 ## What this layer does
 
-`uno-q-clock` installs `/usr/lib/modprobe.d/uno-q-rtc.conf` with `blacklist rtc_pm8xxx`. udev finds
-the driver through a device tree alias, which a blacklist entry stops. No RTC registers, so
-`hctosys` has nothing to apply and the timestamp that `timesyncd` restored at 9.9 s stays.
+The kernel does not copy the RTC over the clock any more: `meta-qcom-arduino` builds the UNO Q kernel
+with `# CONFIG_RTC_HCTOSYS is not set` (see [Upstream](#upstream)), so the timestamp that `timesyncd`
+restored at about 10 s stays. This layer used to keep the driver out instead, with a
+`blacklist rtc_pm8xxx` entry in `/usr/lib/modprobe.d/uno-q-rtc.conf` (updates 26 to 35, for kernels that
+still had `CONFIG_RTC_HCTOSYS`). That file is gone, the RTC driver loads and `/dev/rtc0` exists.
 
 Check on the board:
 
 ```sh
-timedatectl | grep -E 'RTC time|synchronized'   # RTC time: n/a
-lsmod | grep rtc_pm8xxx                         # no output
+zcat /proc/config.gz | grep HCTOSYS             # # CONFIG_RTC_HCTOSYS is not set
+ls /dev/rtc0                                    # exists: the driver is loaded
 journalctl -b | grep -c 'setting system clock'  # 0
 ```
 
-Seen on the board (updates 26 and 28): `timesyncd` restores the clock at 10 s, nothing sets it back, the
-first NTP sync is at about 100 s, the journal has no 1970 lines, and the apps show `Up N minutes`.
+`timedatectl` shows an `RTC time` in 1970 (the RTC is never set); nothing uses it. If the kernel
+provider ever changes (for example to `linux-qcom-next`), check `CONFIG_RTC_HCTOSYS` first: with it on,
+the 1970 clock comes back.
+
+Seen on the board with the blacklist (updates 26 and 28): `timesyncd` restores the clock at 10 s, nothing
+sets it back, the first NTP sync is at about 100 s, the journal has no 1970 lines, and the apps show
+`Up N minutes`.
+
+Seen on the board without it (update 35, kernel 7.2.11, `rtc-pm8xxx` loaded): `timesyncd` restores the
+clock at about 10 s and `rtc0` registers at 14.1 s with no `setting system clock` line. Nothing sets the
+clock back, the journal has no 1970 entries (the few before the restore carry an earlier 2026 date, 43
+minutes before the boot in the run measured), and the first NTP sync is at about 46 s.
 
 This does not make the clock exact. After a boot it is as old as the last NTP sync or clean shutdown
 (minutes, normally), and it is stepped once NTP is reached.
@@ -57,7 +69,7 @@ server, so a clock that is minutes off is no use to them, and they retry on thei
   blocks UDP 123) the three services start two minutes after the unit begins, and
   `systemd-time-wait-sync.service` shows as failed.
 - `docker`, `containerd` and the apps are not held back: they must come up without a network. With the
-  blacklist their clock is already close to right.
+  hctosys switched off their clock is already close to right.
 - Expect the services to start as late as the first NTP sync, which depends on how fast the Wi-Fi
   comes up and on the `timesyncd` retry: at about 37 s on the measured boot, see [Boot time](#boot-time).
 
@@ -196,10 +208,10 @@ coin cell there would keep it running without the 5 V supply. No cell is fitted.
 On 2026-11-11 `meta-qcom-arduino` merged [PR #17](https://github.com/qualcomm-linux/meta-qcom-arduino/pull/17):
 the UNO Q and VENTUNO Q kernels are built with `# CONFIG_RTC_HCTOSYS is not set` ("no battery"). The
 kernel then no longer replaces the clock that `systemd-timesyncd` restored with the RTC's 1970 date, the
-same effect as the blacklist above, with the RTC driver left loaded. This layer pins that commit ahead of
-`meta-foundries` (see the README). It has not been on the board yet: the blacklist stays until a boot with
-the fixed kernel shows `journalctl -b | grep -c 'setting system clock'` at 0 and no 1970 lines with the
-blacklist removed, and only then can it go.
+same effect as the old blacklist, with the RTC driver left loaded. This layer pins that commit ahead of
+`meta-foundries` (see the README). It was proven on the board on 2026-11-12: `/proc/config.gz` has the
+option off, and a boot with the blacklist masked showed `setting system clock` at 0, no 1970 entries and
+a sane clock. The blacklist is therefore removed.
 
 ### What still needs the firmware
 
@@ -209,6 +221,6 @@ the RTC for Linux (then `allow-set-time` on the Arduino board, and a coin cell o
 or a persistent store for runtime variables. That is a question for Arduino and Qualcomm; the board's
 kernel is `arduino/linux-qcom` (`linux-arduino` in `meta-qcom-arduino`).
 
-The blacklist does not belong in `meta-foundries` or `meta-qcom`, generic layers for many machines, where
-blacklisting a PMIC RTC driver would also switch off the RTC of boards that have a working one. It is
-a workaround for this board, kept here.
+The old blacklist did not belong in `meta-foundries` or `meta-qcom`, generic layers for many machines,
+where blacklisting a PMIC RTC driver would also switch off the RTC of boards that have a working one. It
+was a workaround for this board, and the kernel option has replaced it.
