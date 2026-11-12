@@ -130,7 +130,7 @@ and check `systemctl cat uno-q-memhole.service` before the next boot.
 The driver can keep an offset in the UEFI variable `RTCInfo-882f8c2b-9646-435f-8de5-f208ff80c1bd`
 (`qcom,uefi-rtc-info` on `rtc@6000`), and the board's UEFI already has that variable (16 bytes: `NV|BS|RT`
 attributes and 12 bytes of zeros). Tried on 2026-11-05 with a `linux-arduino` patch that sets the
-property on the Arduino board only (branch `try-rtc-uefi-offset`, update 27 on the board):
+property on the Arduino board only (tag `archive/try-rtc-uefi-offset`, update 27 on the board):
 
 - Within one boot it works. About 7 minutes after the first NTP sync the driver had written the offset
   into `RTCInfo` (`07 00 00 00 1a d5 04 58 ...`) and `rtc0` read the right time.
@@ -157,7 +157,7 @@ firmware reports the variable services as supported (the laptops' firmware does 
 
 ### The TrustZone app, tried: it does not persist either
 
-Tried on 2026-11-06 (branch `try-rtc-trustzone`, update 31 on the board) with two kernel patches: the
+Tried on 2026-11-06 (tag `archive/try-rtc-trustzone`, update 31 on the board) with two kernel patches: the
 allowlist entry, and `efivars_generic_ops_unregister()` before the app's `efivars_register()`, as
 `tee_stmm_efi.c` does for OP-TEE. The handoff works and nothing hangs:
 
@@ -178,8 +178,8 @@ With this the EFI variable routes are exhausted on this board.
 
 ## Letting the host write the RTC (tried, refused by the hardware)
 
-Tried on 2026-11-05 with `allow-set-time;` on `rtc@6000` for the Arduino board (branch
-`try-rtc-allow-set-time`, update 29 on the board). The driver then writes the PMIC registers directly
+Tried on 2026-11-05 with `allow-set-time;` on `rtc@6000` for the Arduino board (tag
+`archive/try-rtc-allow-set-time`, update 29 on the board). The driver then writes the PMIC registers directly
 instead of keeping an offset. It does not work: the PMIC arbiter refuses every write.
 
 ```
